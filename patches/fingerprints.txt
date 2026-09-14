@@ -1,0 +1,142 @@
+# How each patch is proven to have reached the packaged output.
+#
+# Applying a patch to the source proves nothing about the package: the file may
+# not be in this target's graph, or the build may inline an older copy. So each
+# patch leaves a fingerprint that survives minification, and the packaged tree is
+# searched for it.
+#
+# Format, one line per patch in patches/:
+#
+#   NNNN label|bundle|pattern      the bundle must contain the pattern
+#   NNNN label|-|why               no fingerprint is possible; how it is proven instead
+#
+# Every patch needs a line. A patch with no line fails the check rather than
+# passing silently, which is the whole point: an absent line used to be
+# indistinguishable from a forgotten one.
+#
+# Choosing a pattern: match something the patch introduces that minification
+# cannot rewrite -- a string literal, an HTML attribute, a comparison against a
+# literal. Never a variable name; those are mangled.
+#
+# Two things the checker now does with these rows, so that neither depends on
+# someone remembering:
+#
+#   * It matches tolerantly. A pattern is written the way one esbuild version
+#     happened to emit it -- `case"android"`, `==="/callback"` -- and the next
+#     version choosing single quotes or a space would have failed rows describing
+#     a tree that is still correct. Quote style and whitespace no longer matter.
+#
+#   * It requires the pattern to appear in what the patch itself ADDS. The rule
+#     here used to read "verify the pattern appears zero times in an unpatched
+#     bundle", which is the right rule and was advice to a human, because doing it
+#     needs a second full build -- thirty minutes on an arm64 runner. Checking
+#     provenance instead is the half that runs offline: a pattern the patch does
+#     not introduce cannot be evidence the patch arrived.
+#
+# That second check is necessary, not sufficient. It catches a pattern lifted from
+# surrounding code; it cannot prove the same text appears nowhere else in the
+# tree. Proving that still wants an unpatched build, and nothing here does it.
+#
+# A row proves the patch ARRIVED, not which version of it did, and that used to
+# be the trap this file was easiest to fall into. Editing a patch that already
+# has a row changes nothing a pattern can see: it still matches, so a published
+# server built before the edit passed, the APK was built from it, and the only
+# thing describing the new behaviour was a CHANGELOG line.
+#
+# That half is now covered by something other than a row. build-vscode-oss.sh
+# writes vscodroid-patches.json into the tree it produces, recording the sha256
+# of each patch's diff, and check-patch-fingerprints.py recomputes those hashes
+# from patches/ and compares. A tarball built from different patch text is
+# refused wherever that check runs, which includes the fetch and the Gradle
+# packaging gate. The prose above each diff is not hashed, because git apply
+# never reads it, so rewriting a patch's reasoning there is free.
+#
+# Everything from the first `diff --git` down IS hashed, comments in the added
+# code included. Editing one of those is a rebuild: the published server has to
+# be built again and refetched before any APK can be packaged, because until then
+# the manifest in the tree names the old text and the gate says so. Budget half
+# an hour on an arm64 runner for a comment, and reach for the header when the
+# note can live there instead.
+#
+# Rows are therefore back to answering the question they are good at: did this
+# reach the packaged bundle at all. Moving one with a revision is still worth
+# doing where the revision introduces something durable of its own -- 0003 is the
+# worked example, its pattern moved from `__vsc_disconnect`, which its first
+# version already added, to the exit wait a later version added -- but it is no
+# longer the only thing standing between an edited patch and a stale server.
+
+# 0001's pattern names the isLinux widening, not the android comparison. Patch
+# 0001 adds two things that both compare against 'android': the widened _isLinux
+# and the _isAndroidPlatform export. `platform==="android"` therefore matches
+# either, and it occurs twice in the packaged bundle for that reason, so a patch
+# narrowed back to `_isLinux = (platform === 'linux')` while keeping the export
+# still satisfies it. Patch 0009's branch sits behind isLinux, so that narrowing
+# would leave 0009 unreachable with every row here still printing ok. The `||`
+# below appears only in the widening: introduced_by rejects the narrowed patch,
+# and the text occurs exactly once in the bundle.
+0001 platform|out/server-main.js|platform === 'linux' ||
+0002 userDataPath|out/vs/platform/terminal/node/ptyHostMain.js|case"android"
+0003 ptyHost worker|out/server-main.js|this._worker.once('exit'
+# 0003 again, for the half of it that is its own bundle. The row above is
+# satisfied entirely by workerAsChildProcess.ts, which the server pulls into
+# out/server-main.js; the process.send-over-parentPort bridge lives in
+# src/bootstrap-fork.ts and becomes out/bootstrap-fork.js, which no row named.
+# Without the bridge both Workers start with no IPC channel at all, so the file
+# not reaching the target's graph is exactly what a fingerprint is for.
+0003 ptyHost bridge|out/bootstrap-fork.js|__vsc_disconnect
+0004 extHost worker|out/server-main.js|worker_thread Extension Host
+0005 webview csp|out/vs/workbench/contrib/webview/browser/pre/index.html|script-src 'unsafe-inline'
+0006 callback relay|out/vs/code/browser/workbench/callback.html|intent://callback
+# 0007 is the one row where a fingerprint exists and still cannot be used.
+# Measured 2026-08-19 against the packaged tree: the patched form appears in
+# workbench.web.main.internal.js and workbench.js, and the unpatched
+# isEncryptionAvailable(){return Promise.resolve(!1)} appears nowhere. That is a
+# sharper control than most rows here have. What refuses it is introduced_by,
+# correctly: the method name is a context line, and Promise.resolve(!0) on its own
+# matches 48 places in the tree.
+0007 persist secrets|-|the bundles do carry isEncryptionAvailable(){return Promise.resolve(!0)}, but its distinctive half is a context line and its added half is minified from true, so introduced_by cannot accept it
+0008 activitybar height|out/vs/code/browser/workbench/workbench.js|.activitybar .composite-bar
+0009 alpine target|out/server-main.js|Android: requesting the alpine target platform
+0010 moduleignore keep|-|edits build/.moduleignore, so its proof is the file surviving into the tree; verify-server-tree.py requires that path
+0011 walkthrough brand|out/nls.messages.js|Get Started with VSCodroid
+0012 callback route|out/server-main.js|==="/callback"
+0013 level grace|out/server-main.js|while another client is connected
+# 0014 gates on the CLAMPED change flags. The pattern is the negated pair the
+# guard compiles to; measured in the pre-patch bundle it occurs zero times
+# (the positive control `scrollTopChanged` occurs 41 times), and an esbuild
+# minify of the new handler emits `!n.scrollTopChanged&&!n.scrollLeftChanged`,
+# so the token survives and only this patch introduces it.
+#
+# The bundle it names used to be out/vs/workbench/workbench.web.main.internal.js,
+# which workbench.html does not load and which the Prune stage now deletes: the
+# row was proving the patch reached the copy nobody runs. The pattern occurs
+# exactly once in each, so repointing it changes nothing but which claim is made.
+0014 menu submenu scroll dismiss|out/vs/code/browser/workbench/workbench.js|scrollTopChanged&&!
+# 0015 gates on the width comparison the guard needs. Measured in the packaged
+# pre-patch bundles, `innerWidth===` occurs zero times in both workbench.js and
+# workbench.web.main.internal.js, while the positive control `innerWidth` occurs
+# 16 times in each, so the operator is what makes it unique and the row cannot
+# pass on surrounding code. A minifier mangles `lastWidth` but not the property
+# read or the operator, so the token survives.
+#
+# This row therefore constrains the patch's shape, which is not obvious from
+# either file alone: hoisting `mainWindow.innerWidth` into a local, the tidier
+# way to write that handler, deletes the token and the row starts failing on a
+# tree that is correct. The patch header says so at the call site too.
+0015 menubar keyboard resize|out/vs/code/browser/workbench/workbench.js|innerWidth===
+# 0016 gates on the comparison it introduces. Measured in the packaged pre-patch
+# workbench.js, `<this.centeredLayoutWidget.minimumWidth` occurs zero times while
+# the positive control `this.centeredLayoutWidget.minimumWidth` occurs once, so
+# the operator is what makes the token unique and the row cannot pass on the code
+# it replaces. Property names survive this bundle intact (the getter is emitted
+# with centeredLayoutWidget, layoutService and getMaximumEditorDimensions all
+# readable), so the token survives minification, and hoisting the read into a
+# local would delete it. The patch header says so at the call site too.
+0016 editor min width|out/vs/code/browser/workbench/workbench.js|<this.centeredLayoutWidget.minimumWidth
+# 0017 gates on the selector it introduces. Measured in the packaged pre-patch
+# workbench.js, `closest('.monaco-submenu')` occurs zero times while the class
+# name alone occurs three times, so the row cannot pass on the surrounding code
+# that creates the submenu. closest is a DOM method and the class is a string
+# literal, so neither is renamed.
+0017 menu pan ownership|out/vs/code/browser/workbench/workbench.js|closest('.monaco-submenu')
+0018 debug terminal env|out/vs/workbench/api/node/extensionHostProcess.js|unset ${
