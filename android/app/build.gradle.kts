@@ -32,11 +32,13 @@ android {
     }
     buildFeatures {
         compose = true
+	buildConfig = true
     }
 }
 
 dependencies {
-
+    implementation(libs.androidx.recyclerview)
+implementation(libs.google.material)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.lifecycle.runtime.ktx)
