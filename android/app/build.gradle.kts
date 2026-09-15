@@ -38,10 +38,11 @@ android {
 
 dependencies {
     implementation(libs.androidx.recyclerview)
-implementation(libs.google.material)
+    implementation(libs.google.material)
     implementation(libs.play.asset.delivery)
-implementation(libs.play.asset.delivery.ktx)    
-implementation(libs.androidx.core.ktx)
+    implementation(libs.play.asset.delivery.ktx)    
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.browser)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
