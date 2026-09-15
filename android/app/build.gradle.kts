@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.vscodroid"
-    compileSdk = 34
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.vscodroid"
