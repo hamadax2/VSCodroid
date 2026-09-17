@@ -2,6 +2,8 @@ name: Release
 
 on:
   push:
+    branches:
+      - "**"
     tags:
       - "v*"
   # A build the signed artifacts can be exercised by without publishing one.
@@ -120,7 +122,7 @@ jobs:
         # which is the reason the step's own comment gives for not running it on
         # a pull request. Nothing is lost: no dispatched run publishes, so there
         # is no artefact for a wrong version to end up on.
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         env:
           TAG: ${{ github.ref_name }}
           # What the ref pointed at before this push and what it points at now.
@@ -272,9 +274,8 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
-
-      - name: Accept Android SDK licenses
-        run: yes | sdkmanager --licenses
+        with:
+          packages: platform-tools
 
       - name: Set up NDK
         run: |

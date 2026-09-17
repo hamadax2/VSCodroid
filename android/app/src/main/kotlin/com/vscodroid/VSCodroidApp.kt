@@ -17,7 +17,14 @@ class VSCodroidApp : Application() {
         // WebView.setDataDirectorySuffix was added in API 28. Calling it
         // unconditionally crashes the app with NoSuchMethodError on Android 8.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            WebView.setDataDirectorySuffix("vscodroid")
+            try {
+                WebView.setDataDirectorySuffix("vscodroid")
+            } catch (t: Throwable) {
+                // A provider initialized by the system or another component can
+                // make this one-time optimization unavailable. Do not abort app
+                // startup when the suffix cannot be applied.
+                Logger.w("VSCodroidApp", "Unable to configure WebView data directory: ${t.message}")
+            }
         }
         Logger.init(this)
         CrashReporter.init(this)
