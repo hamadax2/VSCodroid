@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.os.Build
 import android.os.Bundle
 import android.webkit.WebView
 import com.vscodroid.util.CrashReporter
@@ -13,7 +14,11 @@ class VSCodroidApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        WebView.setDataDirectorySuffix("vscodroid")
+        // WebView.setDataDirectorySuffix was added in API 28. Calling it
+        // unconditionally crashes the app with NoSuchMethodError on Android 8.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            WebView.setDataDirectorySuffix("vscodroid")
+        }
         Logger.init(this)
         CrashReporter.init(this)
 
