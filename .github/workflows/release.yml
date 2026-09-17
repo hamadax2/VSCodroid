@@ -2,8 +2,6 @@ name: Release
 
 on:
   push:
-    branches:
-      - "**"
     tags:
       - "v*"
   # A build the signed artifacts can be exercised by without publishing one.
