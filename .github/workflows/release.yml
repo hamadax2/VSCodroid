@@ -812,6 +812,9 @@ jobs:
           VSCODROID_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew bundleRelease
 
+      - name: Check signed bundle size
+        run: python3 scripts/check-bundle-size.py android/app/build/outputs/bundle/release/app-release.aab
+
       # The merged half of the permission check, asked of the artefact rather
       # than of a task name. The step before the downloads runs the same script
       # on a bare checkout, where only the committed manifest exists; this one
