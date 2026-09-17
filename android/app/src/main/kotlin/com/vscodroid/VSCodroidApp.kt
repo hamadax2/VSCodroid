@@ -53,6 +53,10 @@ class VSCodroidApp : Application() {
     }
 
     private fun createNotificationChannel() {
+        // Notification channels are unavailable before Android 8. Referencing
+        // the API during Application.onCreate must not kill older installs.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+
         val channel = NotificationChannel(
             NOTIFICATION_CHANNEL_ID,
             getString(R.string.notification_channel_name),
