@@ -35,6 +35,7 @@ android {
             "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // The lint baseline contains 3 issues recorded in lint-baseline.xml.
     /*
      * ------------------------------------------------------------
      * Build-time asset sizes
